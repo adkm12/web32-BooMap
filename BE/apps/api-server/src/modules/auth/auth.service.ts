@@ -1,14 +1,10 @@
 import { RedisService } from '@liaoliaots/nestjs-redis';
-import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@app/entity';
 import Redis from 'ioredis';
 import { authException } from '../../exceptions';
-
-interface tokenPayload {
-  email: string;
-  id: number;
-}
+import { JwtPayload, RefreshTokenPayload } from '@app/jwt';
 
 @Injectable()
 export class AuthService {
@@ -22,36 +18,23 @@ export class AuthService {
   }
 
   generateAccessToken(user: User) {
-    const payload = { email: user.email, id: user.id };
+    const payload: JwtPayload = { email: user.email, id: user.id };
     const accessToken = this.jwtService.sign(payload, { expiresIn: 60 * 30 });
     return accessToken;
   }
 
   generateRefreshToken(user: User) {
-    const payload = { id: user.id, email: user.email };
+    const payload: RefreshTokenPayload = { id: user.id, email: user.email };
     const refreshToken = this.jwtService.sign(payload, { expiresIn: '14d' });
     return refreshToken;
   }
 
   async verifiedRefreshToken(refreshToken: string) {
     try {
-      const isBlacklisted = await this.GeneralRedis.get(refreshToken);
-      if (isBlacklisted === 'true') {
-        throw new UnauthorizedException('다시 로그인해주세요.');
-      }
-      this.jwtService.verify(refreshToken);
-      const decoded = this.jwtService.decode(refreshToken);
-      if (!decoded || typeof decoded !== 'object') {
-        throw new BadRequestException('유효하지 않은 토큰입니다.');
-      }
-
-      const payload: tokenPayload = {
-        email: decoded.email,
-        id: decoded.id,
-      };
-
-      const accessToken = this.jwtService.sign(payload, { expiresIn: 60 * 30 });
-      return accessToken;
+      await this.checkBlackList(refreshToken);
+      const refreshPayload: RefreshTokenPayload = this.jwtService.verify<RefreshTokenPayload>(refreshToken);
+      const accessPayload: JwtPayload = { email: refreshPayload.email, id: refreshPayload.id };
+      return this.jwtService.sign(accessPayload, { expiresIn: 60 * 30 });
     } catch (error) {
       this.logger.error(error);
       throw new authException('다시 로그인해주세요.');
@@ -64,6 +47,13 @@ export class AuthService {
     } catch (error) {
       this.logger.error(error);
       throw new authException('로그아웃에 실패했습니다.');
+    }
+  }
+
+  private async checkBlackList(refreshToken: string) {
+    const isBlacklisted = await this.GeneralRedis.get(refreshToken);
+    if (isBlacklisted === 'true') {
+      throw new UnauthorizedException('다시 로그인해주세요.');
     }
   }
 }
