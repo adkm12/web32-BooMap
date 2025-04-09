@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User, UserMindmapRole } from '@app/entity';
 import { Repository } from 'typeorm';
@@ -12,6 +12,10 @@ export class UserService {
   ) {}
 
   async createGithubUser(user: UserCreateDto) {
+    if (!user.email || !user.name) {
+      throw new BadRequestException('이메일과 이름은 필수 입력 항목입니다.');
+    }
+
     const createdUser = this.userRepository.create({ email: user.email, name: user.name, type: 'github' });
     return await this.userRepository.save(createdUser);
   }
@@ -21,6 +25,9 @@ export class UserService {
   }
 
   async createKakaoUser(user: UserCreateDto) {
+    if (user.email === '' || user.name === '') {
+      throw new BadRequestException('이메일과 이름은 필수 입력 항목입니다.');
+    }
     const createdUser = this.userRepository.create({ email: user.email, name: user.name, type: 'kakao' });
     return await this.userRepository.save(createdUser);
   }
@@ -48,6 +55,6 @@ export class UserService {
       where: { user: { id: userId }, mindmap: { id: mindmapId } },
     });
 
-    return userMindmapRole?.role;
+    return userMindmapRole?.role ?? null;
   }
 }
