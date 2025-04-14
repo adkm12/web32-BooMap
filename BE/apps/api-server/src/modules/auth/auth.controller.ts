@@ -12,6 +12,9 @@ export interface AuthenticatedRequest extends Request {
     email: string;
     name?: string;
   };
+  cookies: {
+    refreshToken?: string;
+  };
 }
 
 @Controller('auth')
@@ -29,11 +32,11 @@ export class AuthController {
   @UseGuards(AuthGuard('github'))
   async githubLoginCallback(@Req() req: AuthenticatedRequest, @Res() res: Response) {
     const email = req.user.email;
-    let user = await this.userService.findByGithubEmail(email);
+    let user = await this.userService.findByEmail(email, 'github');
 
     if (!user) {
       const newUser = plainToInstance(UserCreateDto, req.user);
-      user = await this.userService.createGithubUser(newUser);
+      user = await this.userService.createUser(newUser, 'github');
     }
 
     const refreshToken = this.authService.generateRefreshToken(user);
@@ -43,17 +46,17 @@ export class AuthController {
 
   @Get('kakao')
   @UseGuards(AuthGuard('kakao'))
-  async googleLogin() {}
+  async kakaoLogin() {}
 
   @Get('kakao/callback')
   @UseGuards(AuthGuard('kakao'))
-  async googleLoginCallback(@Req() req: AuthenticatedRequest, @Res() res: Response) {
+  async kakaoLoginCallback(@Req() req: AuthenticatedRequest, @Res() res: Response) {
     const email = req.user.email;
-    let user = await this.userService.findByKakaoEmail(email);
+    let user = await this.userService.findByEmail(email, 'kakao');
 
     if (!user) {
       const newUser = plainToInstance(UserCreateDto, req.user);
-      user = await this.userService.createKakaoUser(newUser);
+      user = await this.userService.createUser(newUser, 'kakao');
     }
 
     const refreshToken = this.authService.generateRefreshToken(user);
@@ -62,16 +65,16 @@ export class AuthController {
   }
 
   @Post('refresh')
-  async refresh(@Req() req: Request, @Res() res: Response) {
-    const refreshToken = req.cookies['refreshToken'];
+  async refresh(@Req() req: AuthenticatedRequest, @Res() res: Response) {
+    const refreshToken = req.cookies.refreshToken;
     const accessToken = await this.authService.verifiedRefreshToken(refreshToken);
     res.json({ accessToken });
   }
 
   @Post('logout')
-  async logout(@Req() req: Request, @Res() res: Response) {
-    const refreshToken = req.cookies['refreshToken'];
-    if (refreshToken) {
+  async logout(@Req() req: AuthenticatedRequest, @Res() res: Response) {
+    const refreshToken = req.cookies.refreshToken;
+    if (typeof refreshToken === 'string') {
       await this.authService.logout(refreshToken);
       res.clearCookie('refreshToken');
       res.json({ message: 'success' });

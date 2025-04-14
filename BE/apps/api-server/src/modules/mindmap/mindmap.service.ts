@@ -97,7 +97,7 @@ export class MindmapService {
 
   async getDataByMindmapId(mindmapId: number) {
     const mindmap = await this.mindmapRepository.findOne({ where: { id: mindmapId } });
-    const nodes = await this.nodeService.tableToCanvas(mindmap.id);
+    const nodes = await this.nodeService.getNodeTreeObject(mindmap.id);
 
     if (!mindmap) {
       throw new NotFoundException('마인드맵을 찾을 수 없습니다.');

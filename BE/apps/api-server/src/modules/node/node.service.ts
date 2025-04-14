@@ -1,10 +1,15 @@
 import { Node } from '@app/entity';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, TreeRepository } from 'typeorm';
+import { TreeRepository } from 'typeorm';
 import { NodeDto } from './dto/node.dto';
 import { UpdateNodeDto } from './dto/update.node.dto';
 import { TextAiResponse } from '../ai/ai.service';
+
+type NodeTreeObject = {
+  [key: number]: NodeDto;
+};
+const ROOT_DEPTH = 1;
 
 @Injectable()
 export class NodeService {
@@ -16,132 +21,140 @@ export class NodeService {
     return nodeList.map((node) => node.keyword);
   }
 
-  async tableToCanvas(mindmapId: number) {
-    const rootNode = await this.nodeRepository.findOne({
-      where: { mindmap: { id: mindmapId }, depth: 1 },
-    });
-
-    if (!rootNode) {
-      return {};
-    }
-
+  async getNodeTreeObject(mindmapId: number) {
+    const rootNode = await this.findRootNode(mindmapId);
+    if (!rootNode) return {};
     const nodeTree = await this.nodeRepository.findDescendants(rootNode, { relations: ['children'] });
+    return nodeTree.reduce((result, node) => {
+      result[node.id] = this.toCanvas(node);
+      return result;
+    }, {} as NodeTreeObject);
+  }
 
-    const nodeTreeArray = nodeTree.map((node) => ({
+  private toCanvas(node: Node): NodeDto {
+    return {
       id: node.id,
       keyword: node.keyword,
       depth: node.depth,
       location: { x: node.locationX, y: node.locationY },
       children: node.children.map((child) => child.id),
-    }));
-
-    return Object.fromEntries(nodeTreeArray.map((node) => [node.id, node]));
-  }
-
-  async canvasToTable(canvasData: Record<number, NodeDto>, mindmapId: number) {
-    const dbNodes = await this.nodeRepository.find({ where: { mindmap: { id: mindmapId } } });
-    const dbNodeIds = dbNodes.map((node) => node.id);
-    const canvasNodeIds = Object.keys(canvasData).map(Number);
-    const deleteNodeIds = dbNodeIds.filter((id) => !canvasNodeIds.includes(id));
-
-    const updateData = Object.values(canvasData).map((node) => {
-      return {
-        id: node.id,
-        keyword: node.keyword,
-        locationX: node.location.x,
-        locationY: node.location.y,
-        depth: node.depth,
-      } as UpdateNodeDto;
-    });
-
-    await this.deleteNodes(deleteNodeIds);
-    await this.updateNode(updateData);
-    this.logger.log('데이터 저장 끝');
-  }
-
-  async deleteNodes(deleteNodeId: number[] | number) {
-    if (Array.isArray(deleteNodeId)) {
-      const nodesToDelete = await this.nodeRepository.findBy({ id: In(deleteNodeId) });
-      await this.nodeRepository.softRemove(nodesToDelete);
-      return;
-    }
-
-    const nodeToDelete = await this.nodeRepository.findOne({ where: { id: deleteNodeId } });
-    if (nodeToDelete) {
-      await this.nodeRepository.softRemove(nodeToDelete);
-    }
-  }
-
-  async updateNode(updateData: UpdateNodeDto | UpdateNodeDto[]) {
-    if (Array.isArray(updateData)) {
-      await Promise.all(updateData.map((data) => this.nodeRepository.update(data.id, data)));
-      return;
-    }
-    await this.nodeRepository.update(updateData.id, updateData);
-  }
-
-  async aiCreateNode(aiResponse: TextAiResponse, mindmapId: number, depth = 1) {
-    const createdNodes: Node[] = [];
-
-    const processNode = async (
-      response: TextAiResponse,
-      currentDepth: number,
-      parentNodeId?: number,
-    ): Promise<void> => {
-      let node: Node;
-
-      if (currentDepth === 1) {
-        node = await this.nodeRepository.findOne({
-          where: { mindmap: { id: mindmapId }, depth: 1 },
-        });
-
-        if (node) {
-          node.keyword = response.keyword;
-          node = await this.nodeRepository.save(node);
-        }
-      }
-
-      if (!node) {
-        node = await this.nodeRepository.save({
-          keyword: response.keyword,
-          depth: currentDepth,
-          parent: parentNodeId ? { id: parentNodeId } : null,
-          mindmap: { id: mindmapId },
-        });
-      }
-
-      createdNodes.push(node);
-
-      for (const child of response.children) {
-        await processNode(child, currentDepth + 1, node.id);
-      }
     };
+  }
 
-    await processNode(aiResponse, depth);
+  async updateNodeTree(canvasData: NodeTreeObject, mindmapId: number) {
+    try {
+      const currentNodes = await this.nodeRepository.find({
+        where: { mindmap: { id: mindmapId } },
+        select: ['id'],
+      });
 
-    const nodeData = {};
+      const [nodesToDelete, updateNodeDtos] = this.prepareNodeUpdates(currentNodes, canvasData);
+      await this.executeNodeUpdates(nodesToDelete, updateNodeDtos);
+    } catch (error: any) {
+      const message = `노드 트리 업데이트 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`;
+      this.logger.error(message);
+    }
+  }
 
-    createdNodes.forEach((node) => {
-      const id = node.id;
-      nodeData[id] = {
-        id,
-        keyword: node.keyword,
-        depth: node.depth,
-        location: { x: node.locationX, y: node.locationY },
-        children: [],
-      };
-    });
+  private prepareNodeUpdates(currentNodes: Pick<Node, 'id'>[], canvasData: NodeTreeObject) {
+    const currentNodeIds = currentNodes.map((node) => node.id);
+    const receivedNodeIds = Object.keys(canvasData).map(Number);
 
-    createdNodes.forEach((node) => {
-      const id = node.id;
-      if (node.parent && node.parent.id !== undefined) {
-        const parentId = node.parent.id;
-        if (nodeData[parentId]) {
-          nodeData[parentId].children.push(id);
-        }
+    return [
+      this.findNodesToDelete(currentNodeIds, receivedNodeIds),
+      this.convertCanvasDataToUpdateDto(canvasData),
+    ] as const;
+  }
+
+  private async executeNodeUpdates(nodesToDelete: Pick<Node, 'id'>[], updateNodeDtos: UpdateNodeDto[]) {
+    await this.nodeRepository.manager.transaction(async (transactionalEntityManager) => {
+      if (nodesToDelete.length > 0) {
+        await transactionalEntityManager.softRemove(Node, nodesToDelete);
+      }
+
+      if (updateNodeDtos.length > 0) {
+        await Promise.all(updateNodeDtos.map((dto) => transactionalEntityManager.update(Node, dto.id, dto)));
       }
     });
+  }
 
-    return nodeData;
+  private findNodesToDelete(currentNodeIds: number[], receivedNodeIds: number[]) {
+    const deleteNodeIds = currentNodeIds.filter((id) => !receivedNodeIds.includes(id));
+    if (deleteNodeIds.length === 0) return [];
+
+    return deleteNodeIds.map((id) => ({ id })) as Pick<Node, 'id'>[];
+  }
+
+  private convertCanvasDataToUpdateDto(canvasData: NodeTreeObject) {
+    return Object.values(canvasData).map(
+      (node) =>
+        ({
+          id: node.id,
+          keyword: node.keyword,
+          locationX: node.location.x,
+          locationY: node.location.y,
+          depth: node.depth,
+        }) as UpdateNodeDto,
+    );
+  }
+
+  private async findRootNode(mindmapId: number) {
+    return this.nodeRepository.findOne({ where: { mindmap: { id: mindmapId }, depth: ROOT_DEPTH } });
+  }
+
+  async aiCreateNode(aiResponse: TextAiResponse, mindmapId: number, depth = ROOT_DEPTH): Promise<NodeTreeObject> {
+    try {
+      await this.createNodeTreeRecursively(aiResponse, mindmapId, depth);
+      return this.getNodeTreeObject(mindmapId);
+    } catch (error) {
+      const message = `마인드맵 ${mindmapId}의 AI 노드 트리 생성 중 오류가 발생했습니다`;
+      this.logger.error(message, error);
+      throw error;
+    }
+  }
+
+  private async createNodeTreeRecursively(
+    response: TextAiResponse,
+    mindmapId: number,
+    currentDepth: number,
+    parentNode?: Node,
+  ) {
+    const node =
+      currentDepth === ROOT_DEPTH
+        ? await this.updateOrCreateRootNode(response, mindmapId)
+        : await this.createChildNode(parentNode, response, currentDepth, mindmapId);
+
+    await Promise.all(
+      response.children.map((child) => this.createNodeTreeRecursively(child, mindmapId, currentDepth + 1, node)),
+    );
+  }
+
+  private async updateOrCreateRootNode(aiResponse: TextAiResponse, mindmapId: number) {
+    const existingRoot = await this.findRootNode(mindmapId);
+
+    if (existingRoot) {
+      existingRoot.keyword = aiResponse.keyword;
+      return this.nodeRepository.save(existingRoot);
+    }
+
+    return this.nodeRepository.save({
+      keyword: aiResponse.keyword,
+      depth: ROOT_DEPTH,
+      mindmap: { id: mindmapId },
+    });
+  }
+
+  private async createChildNode(
+    parentNode: Node,
+    childResponse: TextAiResponse,
+    depth: number,
+    mindmapId: number,
+  ): Promise<Node> {
+    return this.nodeRepository.save({
+      keyword: childResponse.keyword,
+      depth,
+      parent: { id: parentNode.id },
+      mindmap: { id: mindmapId },
+    });
   }
 }

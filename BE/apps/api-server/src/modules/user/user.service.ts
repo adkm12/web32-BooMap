@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User, UserMindmapRole } from '@app/entity';
 import { Repository } from 'typeorm';
 import { UserCreateDto, UserInfoDto } from './dto';
+
+export type UserType = 'github' | 'kakao';
 
 @Injectable()
 export class UserService {
@@ -11,22 +13,16 @@ export class UserService {
     @InjectRepository(UserMindmapRole) private readonly userMindmapRoleRepository: Repository<UserMindmapRole>,
   ) {}
 
-  async createGithubUser(user: UserCreateDto) {
-    const createdUser = this.userRepository.create({ email: user.email, name: user.name, type: 'github' });
+  async createUser(user: UserCreateDto, type: UserType) {
+    if (!user.email || !user.name) {
+      throw new BadRequestException('이메일과 이름은 필수 입력 항목입니다.');
+    }
+    const createdUser = this.userRepository.create({ email: user.email, name: user.name, type });
     return await this.userRepository.save(createdUser);
   }
 
-  async findByGithubEmail(email: string) {
-    return await this.userRepository.findOne({ where: { email, type: 'github' } });
-  }
-
-  async createKakaoUser(user: UserCreateDto) {
-    const createdUser = this.userRepository.create({ email: user.email, name: user.name, type: 'kakao' });
-    return await this.userRepository.save(createdUser);
-  }
-
-  async findByKakaoEmail(email: string) {
-    return await this.userRepository.findOne({ where: { email, type: 'kakao' } });
+  async findByEmail(email: string, type: UserType) {
+    return await this.userRepository.findOne({ where: { email, type } });
   }
 
   async findById(id: number) {
@@ -48,6 +44,6 @@ export class UserService {
       where: { user: { id: userId }, mindmap: { id: mindmapId } },
     });
 
-    return userMindmapRole?.role;
+    return userMindmapRole?.role ?? null;
   }
 }
