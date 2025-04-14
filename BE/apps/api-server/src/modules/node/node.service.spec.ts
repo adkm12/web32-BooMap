@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NodeService } from './node.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Node } from '@app/entity';
-import { In } from 'typeorm';
 
 describe('NodeService', () => {
   let service: NodeService;

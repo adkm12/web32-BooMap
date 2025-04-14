@@ -11,6 +11,7 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "incremental": true,
+    "strict": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
     "noImplicitAny": false,
@@ -18,48 +19,20 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@app/config": [
-        "libs/config/src"
-      ],
-      "@app/config/*": [
-        "libs/config/src/*"
-      ],
-      "@app/typeorm": [
-        "libs/typeorm/src"
-      ],
-      "@app/typeorm/*": [
-        "libs/typeorm/src/*"
-      ],
-      "@app/logger": [
-        "libs/logger/src"
-      ],
-      "@app/logger/*": [
-        "libs/logger/src/*"
-      ],
-      "@app/entity": [
-        "libs/entity/src"
-      ],
-      "@app/entity/*": [
-        "libs/entity/src/*"
-      ],
-      "@app/interface": [
-        "libs/interface/src"
-      ],
-      "@app/interface/*": [
-        "libs/interface/src/*"
-      ],
-      "@app/jwt": [
-        "libs/jwt/src"
-      ],
-      "@app/jwt/*": [
-        "libs/jwt/src/*"
-      ],
-      "@app/publisher": [
-        "libs/publisher/src"
-      ],
-      "@app/publisher/*": [
-        "libs/publisher/src/*"
-      ]
+      "@app/config": ["libs/config/src"],
+      "@app/config/*": ["libs/config/src/*"],
+      "@app/typeorm": ["libs/typeorm/src"],
+      "@app/typeorm/*": ["libs/typeorm/src/*"],
+      "@app/logger": ["libs/logger/src"],
+      "@app/logger/*": ["libs/logger/src/*"],
+      "@app/entity": ["libs/entity/src"],
+      "@app/entity/*": ["libs/entity/src/*"],
+      "@app/interface": ["libs/interface/src"],
+      "@app/interface/*": ["libs/interface/src/*"],
+      "@app/jwt": ["libs/jwt/src"],
+      "@app/jwt/*": ["libs/jwt/src/*"],
+      "@app/publisher": ["libs/publisher/src"],
+      "@app/publisher/*": ["libs/publisher/src/*"]
     }
   }
 }

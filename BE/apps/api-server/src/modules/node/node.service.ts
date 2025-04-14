@@ -1,7 +1,7 @@
 import { Node } from '@app/entity';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, TreeRepository } from 'typeorm';
+import { TreeRepository } from 'typeorm';
 import { NodeDto } from './dto/node.dto';
 import { UpdateNodeDto } from './dto/update.node.dto';
 import { TextAiResponse } from '../ai/ai.service';
