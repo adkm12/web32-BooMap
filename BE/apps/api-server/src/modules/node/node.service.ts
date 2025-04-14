@@ -41,20 +41,61 @@ export class NodeService {
     };
   }
 
-  async canvasToTable(canvasData: Record<number, NodeDto>, mindmapId: number) {
-    const dbNodes = await this.nodeRepository.find({ where: { mindmap: { id: mindmapId } } });
-    const dbNodeIds = dbNodes.map((node) => node.id);
-    const canvasNodeIds = Object.keys(canvasData).map(Number);
-    const deleteNodeIds = dbNodeIds.filter((id) => !canvasNodeIds.includes(id));
+  async updateNodeTree(canvasData: NodeTreeObject, mindmapId: number) {
+    try {
+      const currentNodes = await this.nodeRepository.find({
+        where: { mindmap: { id: mindmapId } },
+        select: ['id'],
+      });
 
-    const updateData = Object.values(canvasData).map((node) => {
-      return {
+      const [nodesToDelete, updateNodeDtos] = this.prepareNodeUpdates(currentNodes, canvasData);
+      await this.executeNodeUpdates(nodesToDelete, updateNodeDtos);
+    } catch (error: any) {
+      const message = `노드 트리 업데이트 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`;
+      this.logger.error(message);
+    }
+  }
+
+  private prepareNodeUpdates(currentNodes: Pick<Node, 'id'>[], canvasData: NodeTreeObject) {
+    const currentNodeIds = currentNodes.map((node) => node.id);
+    const receivedNodeIds = Object.keys(canvasData).map(Number);
+
+    return [
+      this.findNodesToDelete(currentNodeIds, receivedNodeIds),
+      this.convertCanvasDataToUpdateDto(canvasData),
+    ] as const;
+  }
+
+  private async executeNodeUpdates(nodesToDelete: Pick<Node, 'id'>[], updateNodeDtos: UpdateNodeDto[]) {
+    await this.nodeRepository.manager.transaction(async (transactionalEntityManager) => {
+      if (nodesToDelete.length > 0) {
+        await transactionalEntityManager.softRemove(Node, nodesToDelete);
+      }
+
+      if (updateNodeDtos.length > 0) {
+        await Promise.all(updateNodeDtos.map((dto) => transactionalEntityManager.update(Node, dto.id, dto)));
+      }
+    });
+  }
+
+  private findNodesToDelete(currentNodeIds: number[], receivedNodeIds: number[]) {
+    const deleteNodeIds = currentNodeIds.filter((id) => !receivedNodeIds.includes(id));
+    if (deleteNodeIds.length === 0) return [];
+
+    return deleteNodeIds.map((id) => ({ id })) as Pick<Node, 'id'>[];
+  }
+
+  private convertCanvasDataToUpdateDto(canvasData: NodeTreeObject) {
+    return Object.values(canvasData).map(
+      (node) =>
+        ({
         id: node.id,
         keyword: node.keyword,
         locationX: node.location.x,
         locationY: node.location.y,
         depth: node.depth,
-    }));
+        }) as UpdateNodeDto,
+    );
   }
 
   private async findRootNode(mindmapId: number) {
