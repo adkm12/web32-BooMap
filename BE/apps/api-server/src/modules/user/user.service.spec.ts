@@ -51,7 +51,7 @@ describe('UserService', () => {
     expect(userService).toBeDefined();
   });
 
-  describe('createbUser', () => {
+  describe('createUser', () => {
     it('github 유저를 생성한다', async () => {
       const userDto: UserCreateDto = {
         email: 'test@example.com',
