@@ -6,6 +6,11 @@ import { NodeDto } from './dto/node.dto';
 import { UpdateNodeDto } from './dto/update.node.dto';
 import { TextAiResponse } from '../ai/ai.service';
 
+type NodeTreeObject = {
+  [key: number]: NodeDto;
+};
+const ROOT_DEPTH = 1;
+
 @Injectable()
 export class NodeService {
   private readonly logger = new Logger(NodeService.name);
@@ -16,26 +21,24 @@ export class NodeService {
     return nodeList.map((node) => node.keyword);
   }
 
-  async tableToCanvas(mindmapId: number) {
-    const rootNode = await this.nodeRepository.findOne({
-      where: { mindmap: { id: mindmapId }, depth: 1 },
-    });
-
-    if (!rootNode) {
-      return {};
-    }
-
+  async getNodeTreeObject(mindmapId: number) {
+    const rootNode = await this.findRootNode(mindmapId);
+    if (!rootNode) return {};
     const nodeTree = await this.nodeRepository.findDescendants(rootNode, { relations: ['children'] });
+    return nodeTree.reduce((result, node) => {
+      result[node.id] = this.toCanvas(node);
+      return result;
+    }, {} as NodeTreeObject);
+  }
 
-    const nodeTreeArray = nodeTree.map((node) => ({
+  private toCanvas(node: Node): NodeDto {
+    return {
       id: node.id,
       keyword: node.keyword,
       depth: node.depth,
       location: { x: node.locationX, y: node.locationY },
       children: node.children.map((child) => child.id),
-    }));
-
-    return Object.fromEntries(nodeTreeArray.map((node) => [node.id, node]));
+    };
   }
 
   async canvasToTable(canvasData: Record<number, NodeDto>, mindmapId: number) {
@@ -51,12 +54,11 @@ export class NodeService {
         locationX: node.location.x,
         locationY: node.location.y,
         depth: node.depth,
-      } as UpdateNodeDto;
-    });
+    }));
+  }
 
-    await this.deleteNodes(deleteNodeIds);
-    await this.updateNode(updateData);
-    this.logger.log('데이터 저장 끝');
+  private async findRootNode(mindmapId: number) {
+    return this.nodeRepository.findOne({ where: { mindmap: { id: mindmapId }, depth: ROOT_DEPTH } });
   }
 
   async deleteNodes(deleteNodeId: number[] | number) {
