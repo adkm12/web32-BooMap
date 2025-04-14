@@ -89,11 +89,11 @@ export class NodeService {
     return Object.values(canvasData).map(
       (node) =>
         ({
-        id: node.id,
-        keyword: node.keyword,
-        locationX: node.location.x,
-        locationY: node.location.y,
-        depth: node.depth,
+          id: node.id,
+          keyword: node.keyword,
+          locationX: node.location.x,
+          locationY: node.location.y,
+          depth: node.depth,
         }) as UpdateNodeDto,
     );
   }
@@ -135,14 +135,14 @@ export class NodeService {
     if (existingRoot) {
       existingRoot.keyword = aiResponse.keyword;
       return this.nodeRepository.save(existingRoot);
-        }
+    }
 
     return this.nodeRepository.save({
       keyword: aiResponse.keyword,
       depth: ROOT_DEPTH,
-          mindmap: { id: mindmapId },
-        });
-      }
+      mindmap: { id: mindmapId },
+    });
+  }
 
   private async createChildNode(
     parentNode: Node,
