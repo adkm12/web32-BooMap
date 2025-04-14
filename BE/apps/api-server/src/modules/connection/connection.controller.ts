@@ -26,8 +26,6 @@ export class ConnectionController {
   @UseGuards(AuthGuard('jwt'))
   async getConnection(@Query() queryDto: ConnectionQueryDto, @User() user: UserDto) {
     const { type, id } = queryDto;
-    console.log('type:', type);
-    console.log('id:', id);
     switch (type) {
       case 'connection':
         return await this.connectionService.getConnection(id as string, user.id);

@@ -90,7 +90,7 @@ export class SubscriberService implements OnModuleInit {
 
     try {
       const parsedNodeData = JSON.parse(nodeData);
-      await this.nodeService.canvasToTable(parsedNodeData, Number(mindmapData.mindmapId));
+      await this.nodeService.updateNodeTree(parsedNodeData, Number(mindmapData.mindmapId));
       await this.mindmapService.update(Number(mindmapData.mindmapId), updateData);
     } catch (error) {
       this.logger.error(`saveData 이벤트 처리 실패: ${error}`);
