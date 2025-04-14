@@ -102,89 +102,59 @@ export class NodeService {
     return this.nodeRepository.findOne({ where: { mindmap: { id: mindmapId }, depth: ROOT_DEPTH } });
   }
 
-  async deleteNodes(deleteNodeId: number[] | number) {
-    if (Array.isArray(deleteNodeId)) {
-      const nodesToDelete = await this.nodeRepository.findBy({ id: In(deleteNodeId) });
-      await this.nodeRepository.softRemove(nodesToDelete);
-      return;
-    }
-
-    const nodeToDelete = await this.nodeRepository.findOne({ where: { id: deleteNodeId } });
-    if (nodeToDelete) {
-      await this.nodeRepository.softRemove(nodeToDelete);
+  async aiCreateNode(aiResponse: TextAiResponse, mindmapId: number, depth = ROOT_DEPTH): Promise<NodeTreeObject> {
+    try {
+      await this.createNodeTreeRecursively(aiResponse, mindmapId, depth);
+      return this.getNodeTreeObject(mindmapId);
+    } catch (error) {
+      const message = `마인드맵 ${mindmapId}의 AI 노드 트리 생성 중 오류가 발생했습니다`;
+      this.logger.error(message, error);
+      throw error;
     }
   }
 
-  async updateNode(updateData: UpdateNodeDto | UpdateNodeDto[]) {
-    if (Array.isArray(updateData)) {
-      await Promise.all(updateData.map((data) => this.nodeRepository.update(data.id, data)));
-      return;
-    }
-    await this.nodeRepository.update(updateData.id, updateData);
+  private async createNodeTreeRecursively(
+    response: TextAiResponse,
+    mindmapId: number,
+    currentDepth: number,
+    parentNode?: Node,
+  ) {
+    const node =
+      currentDepth === ROOT_DEPTH
+        ? await this.updateOrCreateRootNode(response, mindmapId)
+        : await this.createChildNode(parentNode, response, currentDepth, mindmapId);
+
+    await Promise.all(
+      response.children.map((child) => this.createNodeTreeRecursively(child, mindmapId, currentDepth + 1, node)),
+    );
   }
 
-  async aiCreateNode(aiResponse: TextAiResponse, mindmapId: number, depth = 1) {
-    const createdNodes: Node[] = [];
+  private async updateOrCreateRootNode(aiResponse: TextAiResponse, mindmapId: number) {
+    const existingRoot = await this.findRootNode(mindmapId);
 
-    const processNode = async (
-      response: TextAiResponse,
-      currentDepth: number,
-      parentNodeId?: number,
-    ): Promise<void> => {
-      let node: Node;
-
-      if (currentDepth === 1) {
-        node = await this.nodeRepository.findOne({
-          where: { mindmap: { id: mindmapId }, depth: 1 },
-        });
-
-        if (node) {
-          node.keyword = response.keyword;
-          node = await this.nodeRepository.save(node);
+    if (existingRoot) {
+      existingRoot.keyword = aiResponse.keyword;
+      return this.nodeRepository.save(existingRoot);
         }
-      }
 
-      if (!node) {
-        node = await this.nodeRepository.save({
-          keyword: response.keyword,
-          depth: currentDepth,
-          parent: parentNodeId ? { id: parentNodeId } : null,
+    return this.nodeRepository.save({
+      keyword: aiResponse.keyword,
+      depth: ROOT_DEPTH,
           mindmap: { id: mindmapId },
         });
       }
 
-      createdNodes.push(node);
-
-      for (const child of response.children) {
-        await processNode(child, currentDepth + 1, node.id);
-      }
-    };
-
-    await processNode(aiResponse, depth);
-
-    const nodeData = {};
-
-    createdNodes.forEach((node) => {
-      const id = node.id;
-      nodeData[id] = {
-        id,
-        keyword: node.keyword,
-        depth: node.depth,
-        location: { x: node.locationX, y: node.locationY },
-        children: [],
-      };
+  private async createChildNode(
+    parentNode: Node,
+    childResponse: TextAiResponse,
+    depth: number,
+    mindmapId: number,
+  ): Promise<Node> {
+    return this.nodeRepository.save({
+      keyword: childResponse.keyword,
+      depth,
+      parent: { id: parentNode.id },
+      mindmap: { id: mindmapId },
     });
-
-    createdNodes.forEach((node) => {
-      const id = node.id;
-      if (node.parent && node.parent.id !== undefined) {
-        const parentId = node.parent.id;
-        if (nodeData[parentId]) {
-          nodeData[parentId].children.push(id);
-        }
-      }
-    });
-
-    return nodeData;
   }
 }
