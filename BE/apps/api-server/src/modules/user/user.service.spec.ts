@@ -51,8 +51,8 @@ describe('UserService', () => {
     expect(userService).toBeDefined();
   });
 
-  describe('createGithubUser', () => {
-    it('github 유저를 생성해야 한다', async () => {
+  describe('createbUser', () => {
+    it('github 유저를 생성한다', async () => {
       const userDto: UserCreateDto = {
         email: 'test@example.com',
         name: 'Test User',
@@ -62,59 +62,14 @@ describe('UserService', () => {
       userRepository.create.mockReturnValue(user);
       userRepository.save.mockResolvedValue(user);
 
-      const result = await userService.createGithubUser(userDto);
+      const result = await userService.createUser(userDto, 'github');
 
       expect(userRepository.create).toHaveBeenCalledWith(user);
       expect(userRepository.save).toHaveBeenCalledWith(user);
       expect(result).toEqual(user);
     });
 
-    it('DTO가 유효하지 않으면 예외가 발생해야 한다 : 이메일이 없는 경우', async () => {
-      const userDto: UserCreateDto = {
-        email: '',
-        name: 'Test User',
-      };
-
-      await expect(userService.createGithubUser(userDto)).rejects.toThrow(BadRequestException);
-      expect(userRepository.create).not.toHaveBeenCalled();
-      expect(userRepository.save).not.toHaveBeenCalled();
-    });
-
-    it('DTO가 유효하지 않으면 예외가 발생해야 한다 : 이름이 없는 경우', async () => {
-      const userDto: UserCreateDto = {
-        email: 'test@example.com',
-        name: '',
-      };
-
-      await expect(userService.createGithubUser(userDto)).rejects.toThrow(BadRequestException);
-      expect(userRepository.create).not.toHaveBeenCalled();
-      expect(userRepository.save).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('findByGithubEmail', () => {
-    it('github 유저를 조회해야 한다', async () => {
-      const email = 'test@example.com';
-      const user = { id: 1, email, name: 'Test User', type: 'github' };
-      userRepository.findOne.mockResolvedValue(user);
-
-      const result = await userService.findByGithubEmail(email);
-
-      expect(userRepository.findOne).toHaveBeenCalledWith({ where: { email, type: 'github' } });
-      expect(result).toEqual(user);
-    });
-
-    it('github 유저를 찾을 수 없으면 null을 반환해야 한다', async () => {
-      const email = 'test@example.com';
-      userRepository.findOne.mockResolvedValue(null);
-
-      const result = await userService.findByGithubEmail(email);
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('createKakaoUser', () => {
-    it('kakao 유저를 생성해야 한다', async () => {
+    it('kakao 유저를 생성한다', async () => {
       const userDto: UserCreateDto = {
         email: 'test@example.com',
         name: 'Test User',
@@ -124,7 +79,7 @@ describe('UserService', () => {
       userRepository.create.mockReturnValue(user);
       userRepository.save.mockResolvedValue(user);
 
-      const result = await userService.createKakaoUser(userDto);
+      const result = await userService.createUser(userDto, 'kakao');
 
       expect(userRepository.create).toHaveBeenCalledWith(user);
       expect(userRepository.save).toHaveBeenCalledWith(user);
@@ -137,7 +92,7 @@ describe('UserService', () => {
         name: 'Test User',
       };
 
-      await expect(userService.createKakaoUser(userDto)).rejects.toThrow(BadRequestException);
+      await expect(userService.createUser(userDto, 'github')).rejects.toThrow(BadRequestException);
       expect(userRepository.create).not.toHaveBeenCalled();
       expect(userRepository.save).not.toHaveBeenCalled();
     });
@@ -148,28 +103,40 @@ describe('UserService', () => {
         name: '',
       };
 
-      await expect(userService.createKakaoUser(userDto)).rejects.toThrow(BadRequestException);
+      await expect(userService.createUser(userDto, 'github')).rejects.toThrow(BadRequestException);
       expect(userRepository.create).not.toHaveBeenCalled();
       expect(userRepository.save).not.toHaveBeenCalled();
     });
   });
-  describe('findByKakaoEmail', () => {
+
+  describe('findByEmail', () => {
+    it('github 유저를 조회해야 한다', async () => {
+      const email = 'test@example.com';
+      const user = { id: 1, email, name: 'Test User', type: 'github' };
+      userRepository.findOne.mockResolvedValue(user);
+
+      const result = await userService.findByEmail(email, 'github');
+
+      expect(userRepository.findOne).toHaveBeenCalledWith({ where: { email, type: 'github' } });
+      expect(result).toEqual(user);
+    });
+
     it('kakao 유저를 조회해야 한다', async () => {
       const email = 'test@example.com';
       const user = { id: 1, email, name: 'Test User', type: 'kakao' };
       userRepository.findOne.mockResolvedValue(user);
 
-      const result = await userService.findByKakaoEmail(email);
+      const result = await userService.findByEmail(email, 'kakao');
 
       expect(userRepository.findOne).toHaveBeenCalledWith({ where: { email, type: 'kakao' } });
       expect(result).toEqual(user);
     });
 
-    it('kakao 유저를 찾을 수 없으면 null을 반환해야 한다', async () => {
+    it('유저를 찾을 수 없으면 null을 반환해야 한다', async () => {
       const email = 'test@example.com';
       userRepository.findOne.mockResolvedValue(null);
 
-      const result = await userService.findByKakaoEmail(email);
+      const result = await userService.findByEmail(email, 'github');
       expect(result).toBeNull();
     });
   });

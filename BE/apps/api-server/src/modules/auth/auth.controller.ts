@@ -32,11 +32,11 @@ export class AuthController {
   @UseGuards(AuthGuard('github'))
   async githubLoginCallback(@Req() req: AuthenticatedRequest, @Res() res: Response) {
     const email = req.user.email;
-    let user = await this.userService.findByGithubEmail(email);
+    let user = await this.userService.findByEmail(email, 'github');
 
     if (!user) {
       const newUser = plainToInstance(UserCreateDto, req.user);
-      user = await this.userService.createGithubUser(newUser);
+      user = await this.userService.createUser(newUser, 'github');
     }
 
     const refreshToken = this.authService.generateRefreshToken(user);
@@ -52,11 +52,11 @@ export class AuthController {
   @UseGuards(AuthGuard('kakao'))
   async kakaoLoginCallback(@Req() req: AuthenticatedRequest, @Res() res: Response) {
     const email = req.user.email;
-    let user = await this.userService.findByKakaoEmail(email);
+    let user = await this.userService.findByEmail(email, 'kakao');
 
     if (!user) {
       const newUser = plainToInstance(UserCreateDto, req.user);
-      user = await this.userService.createKakaoUser(newUser);
+      user = await this.userService.createUser(newUser, 'kakao');
     }
 
     const refreshToken = this.authService.generateRefreshToken(user);
