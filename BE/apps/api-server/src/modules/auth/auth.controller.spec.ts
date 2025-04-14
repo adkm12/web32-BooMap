@@ -43,10 +43,8 @@ describe('AuthController', () => {
   };
 
   const mockUserService = {
-    findByGithubEmail: jest.fn(),
-    createGithubUser: jest.fn(),
-    findByKakaoEmail: jest.fn(),
-    createKakaoUser: jest.fn(),
+    findByEmail: jest.fn(),
+    createUser: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -80,15 +78,15 @@ describe('AuthController', () => {
         const mockReq = createMockRequest(mockUser);
         const mockRes = createMockResponse();
 
-        mockUserService.findByGithubEmail.mockResolvedValue(mockUser);
+        mockUserService.findByEmail.mockResolvedValue(mockUser);
         mockAuthService.generateRefreshToken.mockReturnValue(mockRefreshToken);
 
         // 테스트 실행
         await controller.githubLoginCallback(mockReq, mockRes);
 
         // 검증
-        expect(mockUserService.findByGithubEmail).toHaveBeenCalledWith(mockReq.user.email);
-        expect(mockUserService.createGithubUser).not.toHaveBeenCalled();
+        expect(mockUserService.findByEmail).toHaveBeenCalledWith(mockReq.user.email, 'github');
+        expect(mockUserService.createUser).not.toHaveBeenCalled();
         expect(mockAuthService.generateRefreshToken).toHaveBeenCalledWith(mockUser);
         expect(mockRes.cookie).toHaveBeenCalledWith('refreshToken', mockRefreshToken, {
           httpOnly: true,
@@ -103,16 +101,16 @@ describe('AuthController', () => {
         const mockReq = createMockRequest(mockUser);
         const mockRes = createMockResponse();
 
-        mockUserService.findByGithubEmail.mockResolvedValue(null);
-        mockUserService.createGithubUser.mockResolvedValue(mockUser);
+        mockUserService.findByEmail.mockResolvedValue(null);
+        mockUserService.createUser.mockResolvedValue(mockUser);
         mockAuthService.generateRefreshToken.mockReturnValue(mockRefreshToken);
 
         // 테스트 실행
         await controller.githubLoginCallback(mockReq, mockRes);
 
         // 검증
-        expect(mockUserService.findByGithubEmail).toHaveBeenCalledWith(mockReq.user.email);
-        expect(mockUserService.createGithubUser).toHaveBeenCalled();
+        expect(mockUserService.findByEmail).toHaveBeenCalledWith(mockReq.user.email, 'github');
+        expect(mockUserService.createUser).toHaveBeenCalled();
         expect(mockAuthService.generateRefreshToken).toHaveBeenCalledWith(mockUser);
         expect(mockRes.cookie).toHaveBeenCalledWith('refreshToken', mockRefreshToken, {
           httpOnly: true,
@@ -129,15 +127,15 @@ describe('AuthController', () => {
         const mockReq = createMockRequest(mockUser);
         const mockRes = createMockResponse();
 
-        mockUserService.findByKakaoEmail.mockResolvedValue(mockUser);
+        mockUserService.findByEmail.mockResolvedValue(mockUser);
         mockAuthService.generateRefreshToken.mockReturnValue(mockRefreshToken);
 
         // 테스트 실행
         await controller.kakaoLoginCallback(mockReq, mockRes);
 
         // 검증
-        expect(mockUserService.findByKakaoEmail).toHaveBeenCalledWith(mockReq.user.email);
-        expect(mockUserService.createKakaoUser).not.toHaveBeenCalled();
+        expect(mockUserService.findByEmail).toHaveBeenCalledWith(mockReq.user.email, 'kakao');
+        expect(mockUserService.createUser).not.toHaveBeenCalled();
         expect(mockAuthService.generateRefreshToken).toHaveBeenCalledWith(mockUser);
         expect(mockRes.cookie).toHaveBeenCalledWith('refreshToken', mockRefreshToken, {
           httpOnly: true,
@@ -152,16 +150,16 @@ describe('AuthController', () => {
         const mockReq = createMockRequest(mockUser);
         const mockRes = createMockResponse();
 
-        mockUserService.findByKakaoEmail.mockResolvedValue(null);
-        mockUserService.createKakaoUser.mockResolvedValue(mockUser);
+        mockUserService.findByEmail.mockResolvedValue(null);
+        mockUserService.createUser.mockResolvedValue(mockUser);
         mockAuthService.generateRefreshToken.mockReturnValue(mockRefreshToken);
 
         // 테스트 실행
         await controller.kakaoLoginCallback(mockReq, mockRes);
 
         // 검증
-        expect(mockUserService.findByKakaoEmail).toHaveBeenCalledWith(mockReq.user.email);
-        expect(mockUserService.createKakaoUser).toHaveBeenCalled();
+        expect(mockUserService.findByEmail).toHaveBeenCalledWith(mockReq.user.email, 'kakao');
+        expect(mockUserService.createUser).toHaveBeenCalled();
         expect(mockAuthService.generateRefreshToken).toHaveBeenCalledWith(mockUser);
         expect(mockRes.cookie).toHaveBeenCalledWith('refreshToken', mockRefreshToken, {
           httpOnly: true,
