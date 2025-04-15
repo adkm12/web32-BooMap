@@ -2,13 +2,14 @@ import { NodeService } from './../node/node.service';
 import { MindmapService } from './../mindmap/mindmap.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { DashboardException } from '../../exceptions';
-
+import { RoleService } from '../role/role.service';
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
   constructor(
     private readonly mindmapService: MindmapService,
     private readonly nodeService: NodeService,
+    private readonly roleService: RoleService,
   ) {}
 
   async findAll(userId: number) {
@@ -20,7 +21,7 @@ export class DashboardService {
       }
 
       const mindmapIds = mindmapList.map((mindmap) => mindmap.id);
-      const owners = await this.mindmapService.getOwner(mindmapIds);
+      const owners = await this.roleService.getMindmapOwner(mindmapIds);
       const keywords = await Promise.all(mindmapIds.map((id) => this.nodeService.findKeywordByMindmapId(id)));
 
       return mindmapList.map((mindmap, index) => ({
