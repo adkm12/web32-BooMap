@@ -16,10 +16,10 @@ export class ConnectionController {
 
   @Post()
   @UseGuards(OptionalJwtGuard)
-  async createMindMap(@User() user: UserDto | null) {
+  async createConnection(@User() user: UserDto | null) {
     return user
       ? await this.connectionService.createConnection(user.id)
-      : await this.connectionService.createGuestConnection();
+      : await this.connectionService.createConnection();
   }
 
   @Get()
@@ -30,7 +30,7 @@ export class ConnectionController {
       case 'connection':
         return await this.connectionService.getConnection(id as string, user.id);
       case 'mindmap':
-        return await this.connectionService.setConnection(id as number, user.id);
+        return await this.connectionService.getConnectionInfo(id as number, user.id);
       default:
         throw new BadRequestException('Invalid query type');
     }
