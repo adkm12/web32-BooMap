@@ -1,20 +1,20 @@
 import { InjectRepository } from '@nestjs/typeorm';
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { In, Repository } from 'typeorm';
-import { Mindmap, UserMindmapRole } from '@app/entity';
+import { Repository } from 'typeorm';
+import { Mindmap } from '@app/entity';
 import { v4 as uuidv4 } from 'uuid';
 import { UpdateMindmapDto } from './dto/update.mindmap.dto';
-import { Role } from '@app/entity/enum/role.enum';
 import { NodeService } from '../node/node.service';
 import { MindmapException } from '../../exceptions';
+import { RoleService } from '../role/role.service';
 
 @Injectable()
 export class MindmapService {
   private readonly logger = new Logger(MindmapService.name);
   constructor(
     @InjectRepository(Mindmap) private mindmapRepository: Repository<Mindmap>,
-    @InjectRepository(UserMindmapRole) private userMindmapRoleRepository: Repository<UserMindmapRole>,
     private nodeService: NodeService,
+    private roleService: RoleService,
   ) {}
 
   async create(userId: number) {
@@ -22,7 +22,7 @@ export class MindmapService {
       const uuid = uuidv4();
       const mindmap = this.mindmapRepository.create({ connectionId: uuid, aiContent: '', content: '' });
       const savedMindmap = await this.mindmapRepository.save(mindmap);
-      await this.assignUserToMindmap(userId, savedMindmap.id);
+      await this.roleService.assignRole(userId, savedMindmap.id);
       return savedMindmap.id;
     } catch (error) {
       this.logger.error(error);
@@ -35,39 +35,11 @@ export class MindmapService {
     return uuid;
   }
 
-  async assignUserToMindmap(userId: number, mindmapId: number, role: Role = Role.OWNER) {
-    const existingRole = await this.userMindmapRoleRepository.findOne({
-      where: {
-        user: { id: userId },
-        mindmap: { id: mindmapId },
-      },
-    });
-
-    if (existingRole) {
-      return existingRole;
-    }
-
-    const userMindmapRole = this.userMindmapRoleRepository.create({
-      user: { id: userId },
-      mindmap: { id: mindmapId },
-      role,
-    });
-
-    return await this.userMindmapRoleRepository.save(userMindmapRole);
-  }
-
   async findAllByUserId(userId: number) {
-    const myRoles = await this.userMindmapRoleRepository.find({
-      where: { user: { id: userId } },
-      relations: ['mindmap'],
-      select: ['mindmap'],
+    const mindmaps = await this.mindmapRepository.find({
+      where: { userMindmapRoles: { user: { id: userId } } },
     });
-
-    if (!myRoles) {
-      return [];
-    }
-
-    return myRoles.map((record) => record.mindmap);
+    return mindmaps;
   }
 
   async update(mindmapId: number, updateMindmapDto: UpdateMindmapDto) {
@@ -75,11 +47,8 @@ export class MindmapService {
   }
 
   async delete(mindmapId: number, userId: number) {
-    const role = await this.userMindmapRoleRepository.findOne({
-      where: { user: { id: userId }, mindmap: { id: mindmapId } },
-    });
-
-    if (role.role !== Role.OWNER) {
+    const isOwner = await this.roleService.verifyUserIsOwner(userId, mindmapId);
+    if (!isOwner) {
       throw new ForbiddenException('권한이 없습니다.');
     }
 
@@ -97,11 +66,11 @@ export class MindmapService {
 
   async getDataByMindmapId(mindmapId: number) {
     const mindmap = await this.mindmapRepository.findOne({ where: { id: mindmapId } });
-    const nodes = await this.nodeService.getNodeTreeObject(mindmap.id);
-
     if (!mindmap) {
       throw new NotFoundException('마인드맵을 찾을 수 없습니다.');
     }
+
+    const nodes = await this.nodeService.getNodeTreeObject(mindmap.id);
 
     return {
       title: mindmap.title,
@@ -112,34 +81,7 @@ export class MindmapService {
     };
   }
 
-  async getOwner(mindmapId: number | number[]) {
-    if (Array.isArray(mindmapId)) {
-      const owners = await this.userMindmapRoleRepository.find({
-        where: { mindmap: { id: In(mindmapId) }, role: Role.OWNER },
-        relations: ['user', 'mindmap'],
-      });
-      return owners.map((owner) => {
-        return {
-          mindmapId: owner.mindmap.id,
-          userId: owner.user.id,
-          ownerName: owner.user.name,
-        };
-      });
-    }
-    const owner = await this.userMindmapRoleRepository.findOne({
-      where: { mindmap: { id: mindmapId }, role: Role.OWNER },
-      relations: ['user', 'mindmap'],
-    });
-    return [
-      {
-        mindmapId: owner.mindmap.id,
-        userId: owner.user.id,
-        ownerName: owner.user.name,
-      },
-    ];
-  }
-
-  async getMindmapByConnectionId(connectionId: string) {
+  async getMindmapByConnectionId(connectionId: string): Promise<Mindmap | null> {
     return await this.mindmapRepository.findOne({ where: { connectionId } });
   }
 }

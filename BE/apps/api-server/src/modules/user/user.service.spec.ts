@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserService } from './user.service';
 import { User } from '@app/entity';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { UserMindmapRole } from '@app/entity';
 import { Repository } from 'typeorm';
 import { UserCreateDto } from './dto';
 import { BadRequestException } from '@nestjs/common';
@@ -11,15 +10,10 @@ type MockRepository<T> = Partial<Record<keyof Repository<T>, jest.Mock>>;
 describe('UserService', () => {
   let userService: UserService;
   let userRepository: MockRepository<User>;
-  let userMindmapRoleRepository: MockRepository<UserMindmapRole>;
 
   const mockUserRepository = {
     create: jest.fn(),
     save: jest.fn(),
-    findOne: jest.fn(),
-  };
-
-  const mockUserMindmapRoleRepository = {
     findOne: jest.fn(),
   };
 
@@ -31,16 +25,11 @@ describe('UserService', () => {
           provide: getRepositoryToken(User),
           useValue: mockUserRepository,
         },
-        {
-          provide: getRepositoryToken(UserMindmapRole),
-          useValue: mockUserMindmapRoleRepository,
-        },
       ],
     }).compile();
 
     userService = module.get<UserService>(UserService);
     userRepository = module.get<MockRepository<User>>(getRepositoryToken(User));
-    userMindmapRoleRepository = module.get<MockRepository<UserMindmapRole>>(getRepositoryToken(UserMindmapRole));
   });
 
   afterEach(() => {
@@ -171,33 +160,10 @@ describe('UserService', () => {
       const result = await userService.getUserInfo(userId);
 
       expect(userRepository.findOne).toHaveBeenCalledWith({ where: { id: userId } });
-      expect(result).toEqual(user);
-    });
-  });
-
-  describe('getRole', () => {
-    it('유저 역할을 조회해야 한다', async () => {
-      const userId = 1;
-      const mindmapId = 1;
-      const role = 'admin';
-      const userMindmapRole = { id: 1, user: { id: userId }, mindmap: { id: mindmapId }, role };
-      userMindmapRoleRepository.findOne.mockResolvedValue(userMindmapRole);
-
-      const result = await userService.getRole(userId, mindmapId);
-
-      expect(userMindmapRoleRepository.findOne).toHaveBeenCalledWith({
-        where: { user: { id: userId }, mindmap: { id: mindmapId } },
+      expect(result).toEqual({
+        name: user.name,
+        email: user.email,
       });
-      expect(result).toEqual(role);
-    });
-
-    it('유저 역할을 찾을 수 없으면 null을 반환해야 한다', async () => {
-      const userId = 1;
-      const mindmapId = 1;
-      userMindmapRoleRepository.findOne.mockResolvedValue(null);
-
-      const result = await userService.getRole(userId, mindmapId);
-      expect(result).toBeNull();
     });
   });
 });

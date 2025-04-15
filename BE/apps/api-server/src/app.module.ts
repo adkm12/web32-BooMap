@@ -16,6 +16,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AiModule } from './modules/ai/ai.module';
 import { SubscriberModule } from './modules/subscriber/subscriber.module';
 import { PublisherModule } from '@app/publisher';
+import { RoleModule } from './modules/role/role.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { PublisherModule } from '@app/publisher';
     SubscriberModule,
     PublisherModule,
     AiModule,
+    RoleModule,
   ],
   controllers: [],
   providers: [],
